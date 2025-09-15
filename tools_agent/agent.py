@@ -13,12 +13,17 @@ from tools_agent.utils.tools import (
     wrap_mcp_authenticate_tool,
     create_langchain_mcp_tool,
 )
+from tools_agent.utils.openalex import create_openalex_tools, OpenAlexSearchConfig
 
 
 UNEDITABLE_SYSTEM_PROMPT = "\nIf the tool throws an error requiring authentication, provide the user with a Markdown link to the authentication page and prompt them to authenticate."
 
 DEFAULT_SYSTEM_PROMPT = (
-    "You are a helpful assistant that has access to a variety of tools."
+    "You are a helpful assistant that has access to a variety of tools. "
+    "You can search for academic papers, authors, and research using OpenAlex, "
+    "access MCP tools, and search document collections. "
+    "When helping with academic research, use the OpenAlex tools to find relevant papers, "
+    "authors, and detailed information about scholarly works."
 )
 
 
@@ -147,6 +152,27 @@ class GraphConfigPydantic(BaseModel):
             }
         },
     )
+    openalex: Optional[OpenAlexSearchConfig] = Field(
+        default=OpenAlexSearchConfig(),
+        optional=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "object",
+                "description": "OpenAlex API configuration for academic research tools",
+                "properties": {
+                    "enabled": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Enable OpenAlex academic research tools"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Email for polite pool access (optional but recommended)"
+                    }
+                }
+            }
+        },
+    )
 
 
 def get_api_key_for_model(model_name: str, config: RunnableConfig):
@@ -170,6 +196,11 @@ def get_api_key_for_model(model_name: str, config: RunnableConfig):
 async def graph(config: RunnableConfig):
     cfg = GraphConfigPydantic(**config.get("configurable", {}))
     tools = []
+
+    # Add OpenAlex tools if enabled
+    if cfg.openalex and cfg.openalex.enabled:
+        openalex_tools = create_openalex_tools(cfg.openalex)
+        tools.extend(openalex_tools)
 
     supabase_token = config.get("configurable", {}).get("x-supabase-access-token")
     if cfg.rag and cfg.rag.rag_url and cfg.rag.collections and supabase_token:
