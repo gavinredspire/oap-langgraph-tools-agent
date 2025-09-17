@@ -49,7 +49,7 @@ class MCPConfig(BaseModel):
 
 class GraphConfigPydantic(BaseModel):
     model_name: Optional[str] = Field(
-        default="openai:gpt-4o",
+        default="openai:gpt-5",
         metadata={
             "x_oap_ui_config": {
                 "type": "select",
@@ -75,6 +75,8 @@ class GraphConfigPydantic(BaseModel):
                     {"label": "o4 mini", "value": "openai:o4-mini"},
                     {"label": "o3", "value": "openai:o3"},
                     {"label": "o3 mini", "value": "openai:o3-mini"},
+                    {"label": "GPT 5 mini", "value": "openai:gpt-5-mini"},
+                    {"label": "GPT 5 nano", "value": "openai:gpt-5-nano"},
                     {"label": "GPT 4o", "value": "openai:gpt-4o"},
                     {"label": "GPT 4o mini", "value": "openai:gpt-4o-mini"},
                     {"label": "GPT 4.1", "value": "openai:gpt-4.1"},
