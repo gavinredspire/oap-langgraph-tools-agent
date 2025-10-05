@@ -58,9 +58,10 @@ async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserD
                 status_code=401, detail="Invalid token or user not found"
             )
 
-        # Return user info if valid
+        # Return user info if valid, include token in metadata for downstream hooks
         return {
             "identity": user.id,
+            "metadata": {"supabase_token": token},
         }
     except Exception as e:
         # Handle any errors from Supabase
@@ -84,6 +85,20 @@ async def on_thread_create(
 
     if isinstance(ctx.user, StudioUser):
         return
+
+    # Inject Supabase token into run configuration if available
+    # so downstream graph code can call external services on behalf of the user
+    supabase_token = None
+    try:
+        # Prefer token stored on the user metadata (set in authenticate step)
+        if hasattr(ctx, "user") and getattr(ctx.user, "metadata", None):
+            supabase_token = ctx.user.metadata.get("supabase_token")
+    except Exception:
+        supabase_token = None
+
+    if supabase_token:
+        configurable = value.setdefault("configurable", {})
+        configurable["x-supabase-access-token"] = supabase_token
 
     # Add owner metadata to the thread being created
     # This metadata is stored with the thread and persists
