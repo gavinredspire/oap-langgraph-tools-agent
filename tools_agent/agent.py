@@ -176,6 +176,8 @@ async def graph(config: RunnableConfig):
     cfg = GraphConfigPydantic(**config.get("configurable", {}))
     tools = []
 
+    supabase_token = config.get("configurable", {}).get("x-supabase-access-token")
+
     logger.info(f"RAG config: {cfg.rag}")
     logger.info(f"Supabase token present: {bool(supabase_token)}")
     
@@ -193,7 +195,6 @@ async def graph(config: RunnableConfig):
     
     logger.info(f"Total tools created: {len(tools)}")
 
-    supabase_token = config.get("configurable", {}).get("x-supabase-access-token")
     if cfg.rag and cfg.rag.rag_url and cfg.rag.collections and supabase_token:
         for collection in cfg.rag.collections:
             rag_tool = await create_rag_tool(
