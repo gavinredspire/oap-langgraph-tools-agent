@@ -176,7 +176,19 @@ async def graph(config: RunnableConfig):
     cfg = GraphConfigPydantic(**config.get("configurable", {}))
     tools = []
 
-    supabase_token = config.get("configurable", {}).get("x-supabase-access-token")
+    # Log available config keys for debugging
+    logger.info("Config keys: %s", list(config.keys()))
+    logger.info("Config.configurable keys: %s", list(config.get("configurable", {}).keys()))
+    logger.info(
+        "Config.config.configurable keys: %s",
+        list(config.get("config", {}).get("configurable", {}).keys()),
+    )
+
+    # Read token from both top-level configurable and nested config.configurable
+    supabase_token = (
+        config.get("configurable", {}).get("x-supabase-access-token")
+        or config.get("config", {}).get("configurable", {}).get("x-supabase-access-token")
+    )
 
     logger.info(f"RAG config: {cfg.rag}")
     logger.info(f"Supabase token present: {bool(supabase_token)}")

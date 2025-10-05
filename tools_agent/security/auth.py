@@ -83,7 +83,6 @@ async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserD
 
 
 @auth.on.threads.create
-@auth.on.threads.create_run
 async def on_thread_create(
     ctx: Auth.types.AuthContext,
     value: Auth.types.on.threads.create.value,
@@ -124,6 +123,36 @@ async def on_thread_create(
     metadata = value.setdefault("metadata", {})
     metadata["owner"] = ctx.user.identity
     logger.info("Auth Hook: set thread owner to %s", ctx.user.identity)
+
+
+@auth.on.threads.create_run
+async def on_thread_create_run(
+    ctx: Auth.types.AuthContext,
+    value: Auth.types.on.threads.create_run.value,
+):
+    """Inject Supabase token into the run configuration for create_run events."""
+
+    if isinstance(ctx.user, StudioUser):
+        logger.info("Auth Hook (create_run): StudioUser detected; skipping token injection")
+        return
+
+    token: Optional[str] = None
+    try:
+        if hasattr(ctx.user, "metadata") and ctx.user.metadata:
+            token = ctx.user.metadata.get("supabase_token")
+    except Exception:
+        token = None
+
+    if token:
+        cfg = value.setdefault("config", {})
+        configurable = cfg.setdefault("configurable", {})
+        configurable["x-supabase-access-token"] = token
+        logger.info(
+            "Auth Hook (create_run): injected Supabase token into config.configurable (len=%s)",
+            len(token),
+        )
+    else:
+        logger.warning("Auth Hook (create_run): no Supabase token found; not injecting")
 
 
 @auth.on.threads.read
