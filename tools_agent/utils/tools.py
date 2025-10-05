@@ -85,6 +85,8 @@ async def create_rag_tool(rag_url: str, collection_id: str, access_token: str):
     Returns:
         A structured tool that can be used to query the RAG collection
     """
+
+    print(f"Creating RAG tool for {rag_url} with collection {collection_id} and access token {access_token}")
     if rag_url.endswith("/"):
         rag_url = rag_url[:-1]
 

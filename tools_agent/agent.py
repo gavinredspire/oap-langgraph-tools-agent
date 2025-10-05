@@ -172,6 +172,72 @@ def get_api_key_for_model(model_name: str, config: RunnableConfig):
 async def graph(config: RunnableConfig):
     cfg = GraphConfigPydantic(**config.get("configurable", {}))
     tools = []
+    print("=== RAW CONFIG ===")
+    print(f"Full config: {config}")
+    print(f"Configurable section: {config.get('configurable', {})}")
+    
+    # Parse the config
+    cfg = GraphConfigPydantic(**config.get("configurable", {}))
+    
+    # Print the parsed configuration
+    print("=== PARSED CONFIG ===")
+    print(f"Model name: {cfg.model_name}")
+    print(f"Temperature: {cfg.temperature}")
+    print(f"Max tokens: {cfg.max_tokens}")
+    print(f"System prompt: {cfg.system_prompt}")
+    print(f"MCP config: {cfg.mcp_config}")
+    print(f"RAG config: {cfg.rag}")
+    
+    # Print RAG details if present
+    if cfg.rag:
+        print("=== RAG CONFIG DETAILS ===")
+        print(f"RAG URL: {cfg.rag.rag_url}")
+        print(f"Collections: {cfg.rag.collections}")
+        print(f"RAG URL exists: {bool(cfg.rag.rag_url)}")
+        print(f"Collections exist: {bool(cfg.rag.collections)}")
+        print(f"Collections count: {len(cfg.rag.collections) if cfg.rag.collections else 0}")
+    
+    # Print token information
+    print("=== TOKEN INFO ===")
+    supabase_token = config.get("configurable", {}).get("x-supabase-access-token")
+    print(f"Supabase token from config: {supabase_token}")
+    print(f"Supabase token exists: {bool(supabase_token)}")
+    print(f"SUPABASE_KEY env var: {os.getenv('SUPABASE_KEY')}")
+    
+    tools = []
+    
+    # Print RAG tool creation decision
+    print("=== RAG TOOL CREATION DECISION ===")
+    rag_conditions = {
+        "cfg.rag exists": bool(cfg.rag),
+        "rag_url exists": bool(cfg.rag.rag_url if cfg.rag else None),
+        "collections exist": bool(cfg.rag.collections if cfg.rag else None),
+        "supabase_token exists": bool(supabase_token)
+    }
+    print(f"RAG conditions: {rag_conditions}")
+    print(f"Will create RAG tools: {all(rag_conditions.values())}")
+    
+    # Your existing RAG tool creation code...
+    if cfg.rag and cfg.rag.rag_url and cfg.rag.collections and supabase_token:
+        print("=== CREATING RAG TOOLS ===")
+        for i, collection in enumerate(cfg.rag.collections):
+            print(f"Creating RAG tool {i+1}/{len(cfg.rag.collections)} for collection: {collection}")
+            try:
+                rag_tool = await create_rag_tool(
+                    cfg.rag.rag_url, collection, supabase_token
+                )
+                tools.append(rag_tool)
+                print(f"Successfully created RAG tool for collection: {collection}")
+            except Exception as e:
+                print(f"Failed to create RAG tool for collection {collection}: {e}")
+    else:
+        print("=== SKIPPING RAG TOOL CREATION ===")
+        print("Reason: One or more conditions not met")
+    
+    # Print final tools count
+    print(f"=== FINAL TOOLS COUNT: {len(tools)} ===")
+    for i, tool in enumerate(tools):
+        print(f"Tool {i+1}: {getattr(tool, 'name', 'unnamed')}")
 
     supabase_token = config.get("configurable", {}).get("x-supabase-access-token")
     if cfg.rag and cfg.rag.rag_url and cfg.rag.collections and supabase_token:
