@@ -1,5 +1,6 @@
 import os
 import asyncio
+import logging
 from langgraph_sdk import Auth
 from langgraph_sdk.auth.types import StudioUser
 from supabase import create_client, Client
@@ -8,6 +9,8 @@ from typing import Optional, Any
 supabase_url = os.environ.get("SUPABASE_URL")
 supabase_key = os.environ.get("SUPABASE_KEY")
 supabase: Optional[Client] = None
+
+logger = logging.getLogger(__name__)
 
 if supabase_url and supabase_key:
     supabase = create_client(supabase_url, supabase_key)
@@ -24,6 +27,7 @@ async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserD
 
     # Ensure we have authorization header
     if not authorization:
+        logger.warning("Auth: missing Authorization header")
         raise Auth.exceptions.HTTPException(
             status_code=401, detail="Authorization header missing"
         )
@@ -33,12 +37,14 @@ async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserD
         scheme, token = authorization.split()
         assert scheme.lower() == "bearer"
     except (ValueError, AssertionError):
+        logger.warning("Auth: invalid Authorization header format")
         raise Auth.exceptions.HTTPException(
             status_code=401, detail="Invalid authorization header format"
         )
 
     # Ensure Supabase client is initialized
     if not supabase:
+        logger.error("Auth: Supabase client not initialized - check SUPABASE_URL/KEY env vars")
         raise Auth.exceptions.HTTPException(
             status_code=500, detail="Supabase client not initialized"
         )
@@ -54,17 +60,23 @@ async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserD
         user = response.user
 
         if not user:
+            logger.warning("Auth: token verified but user missing")
             raise Auth.exceptions.HTTPException(
                 status_code=401, detail="Invalid token or user not found"
             )
 
         # Return user info if valid, include token in metadata for downstream hooks
+        logger.info(
+            "Auth: authenticated user; storing token in metadata (len=%s)",
+            len(token) if isinstance(token, str) else "n/a",
+        )
         return {
             "identity": user.id,
             "metadata": {"supabase_token": token},
         }
     except Exception as e:
         # Handle any errors from Supabase
+        logger.exception("Auth: error during authentication: %s", e)
         raise Auth.exceptions.HTTPException(
             status_code=401, detail=f"Authentication error: {str(e)}"
         )
@@ -84,6 +96,7 @@ async def on_thread_create(
     """
 
     if isinstance(ctx.user, StudioUser):
+        logger.info("Auth Hook: StudioUser detected; skipping token injection")
         return
 
     # Inject Supabase token into run configuration if available
@@ -99,11 +112,18 @@ async def on_thread_create(
     if supabase_token:
         configurable = value.setdefault("configurable", {})
         configurable["x-supabase-access-token"] = supabase_token
+        logger.info(
+            "Auth Hook: injected Supabase token into run config (len=%s)",
+            len(supabase_token) if isinstance(supabase_token, str) else "n/a",
+        )
+    else:
+        logger.warning("Auth Hook: no Supabase token found in user metadata; not injecting")
 
     # Add owner metadata to the thread being created
     # This metadata is stored with the thread and persists
     metadata = value.setdefault("metadata", {})
     metadata["owner"] = ctx.user.identity
+    logger.info("Auth Hook: set thread owner to %s", ctx.user.identity)
 
 
 @auth.on.threads.read
