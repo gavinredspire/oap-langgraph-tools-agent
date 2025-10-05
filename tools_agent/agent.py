@@ -1,4 +1,5 @@
 import os
+import logging
 from langchain_core.runnables import RunnableConfig
 from typing import Optional, List
 from pydantic import BaseModel, Field
@@ -21,6 +22,7 @@ DEFAULT_SYSTEM_PROMPT = (
     "You are a helpful assistant that has access to a variety of tools. "
 )
 
+logger = logging.getLogger(__name__)
 
 class RagConfig(BaseModel):
     rag_url: Optional[str] = None
@@ -173,6 +175,23 @@ def get_api_key_for_model(model_name: str, config: RunnableConfig):
 async def graph(config: RunnableConfig):
     cfg = GraphConfigPydantic(**config.get("configurable", {}))
     tools = []
+
+    logger.info(f"RAG config: {cfg.rag}")
+    logger.info(f"Supabase token present: {bool(supabase_token)}")
+    
+    if cfg.rag and cfg.rag.rag_url and cfg.rag.collections and supabase_token:
+        logger.info("Creating RAG tools...")
+        for collection in cfg.rag.collections:
+            try:
+                rag_tool = await create_rag_tool(cfg.rag.rag_url, collection, supabase_token)
+                tools.append(rag_tool)
+                logger.info(f"✅ Created RAG tool for: {collection}")
+            except Exception as e:
+                logger.error(f"❌ Failed to create RAG tool for {collection}: {e}")
+    else:
+        logger.warning("Skipping RAG tool creation - conditions not met")
+    
+    logger.info(f"Total tools created: {len(tools)}")
 
     supabase_token = config.get("configurable", {}).get("x-supabase-access-token")
     if cfg.rag and cfg.rag.rag_url and cfg.rag.collections and supabase_token:
