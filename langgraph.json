@@ -7,5 +7,10 @@
   "python_version": "3.11",
   "auth": {
     "path": "./tools_agent/security/auth.py:auth"
+  },
+  "http": {
+    "configurable_headers": {
+      "authorization": "x-supabase-access-token"
+    }
   }
 }
