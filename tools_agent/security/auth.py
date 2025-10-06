@@ -136,6 +136,24 @@ async def on_thread_create_run(
         logger.info("Auth Hook (create_run): StudioUser detected; skipping token injection")
         return
 
+    # Log the incoming structure for diagnostics (keys only, no sensitive data)
+    try:
+        value_keys = list(value.keys()) if hasattr(value, "keys") else []
+    except Exception:
+        value_keys = []
+    logger.info("Auth Hook (create_run): fired; value keys=%s", value_keys)
+
+    try:
+        cfg_before = value.get("config", {}) if hasattr(value, "get") else {}
+        configurable_before = cfg_before.get("configurable", {}) if isinstance(cfg_before, dict) else {}
+        logger.info(
+            "Auth Hook (create_run): before injection -> has_config=%s configurable_keys=%s",
+            bool(cfg_before),
+            list(configurable_before.keys()) if isinstance(configurable_before, dict) else [],
+        )
+    except Exception:
+        logger.info("Auth Hook (create_run): unable to introspect config before injection")
+
     token: Optional[str] = None
     try:
         if hasattr(ctx.user, "metadata") and ctx.user.metadata:
@@ -151,6 +169,18 @@ async def on_thread_create_run(
             "Auth Hook (create_run): injected Supabase token into config.configurable (len=%s)",
             len(token),
         )
+
+        # Log post-injection structure (keys only)
+        try:
+            cfg_after = value.get("config", {}) if hasattr(value, "get") else {}
+            configurable_after = cfg_after.get("configurable", {}) if isinstance(cfg_after, dict) else {}
+            logger.info(
+                "Auth Hook (create_run): after injection -> has_config=%s configurable_keys=%s",
+                bool(cfg_after),
+                list(configurable_after.keys()) if isinstance(configurable_after, dict) else [],
+            )
+        except Exception:
+            logger.info("Auth Hook (create_run): unable to introspect config after injection")
     else:
         logger.warning("Auth Hook (create_run): no Supabase token found; not injecting")
 
