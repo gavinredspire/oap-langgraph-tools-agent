@@ -24,6 +24,7 @@ auth = Auth()
 @auth.authenticate
 async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserDict:
     """Check if the user's JWT token is valid using Supabase."""
+    logger.info("Auth: authenticate called, has authorization header: %s", bool(authorization))
 
     # Ensure we have authorization header
     if not authorization:
@@ -36,6 +37,7 @@ async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserD
     try:
         scheme, token = authorization.split()
         assert scheme.lower() == "bearer"
+        logger.info("Auth: parsed authorization header, token length=%s", len(token))
     except (ValueError, AssertionError):
         logger.warning("Auth: invalid Authorization header format")
         raise Auth.exceptions.HTTPException(
@@ -70,10 +72,12 @@ async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserD
             "Auth: authenticated user; storing token in metadata (len=%s)",
             len(token) if isinstance(token, str) else "n/a",
         )
-        return {
+        result = {
             "identity": user.id,
             "metadata": {"supabase_token": token},
         }
+        logger.info("Auth: returning user dict with metadata keys: %s", list(result.get("metadata", {}).keys()))
+        return result
     except Exception as e:
         # Handle any errors from Supabase
         logger.exception("Auth: error during authentication: %s", e)
@@ -132,6 +136,18 @@ async def on_thread_create_run(
 ):
     """Inject Supabase token into the run configuration for create_run events."""
 
+    # Log user type and metadata availability up-front
+    try:
+        logger.info("Auth Hook (create_run): user type = %s", type(ctx.user).__name__)
+        logger.info("Auth Hook (create_run): is StudioUser? %s", isinstance(ctx.user, StudioUser))
+        logger.info("Auth Hook (create_run): user.identity = %s", getattr(ctx.user, 'identity', 'N/A'))
+        has_md = hasattr(ctx.user, 'metadata') and bool(getattr(ctx.user, 'metadata', None))
+        logger.info("Auth Hook (create_run): user has metadata? %s", has_md)
+        if has_md:
+            logger.info("Auth Hook (create_run): user.metadata keys = %s", list(ctx.user.metadata.keys()))
+    except Exception as e:
+        logger.info("Auth Hook (create_run): unable to inspect user details: %s", e)
+
     if isinstance(ctx.user, StudioUser):
         logger.info("Auth Hook (create_run): StudioUser detected; skipping token injection")
         return
@@ -158,6 +174,9 @@ async def on_thread_create_run(
     try:
         if hasattr(ctx.user, "metadata") and ctx.user.metadata:
             token = ctx.user.metadata.get("supabase_token")
+            logger.info("Auth Hook (create_run): extracted token from user.metadata, length=%s", len(token) if token else 0)
+        else:
+            logger.warning("Auth Hook (create_run): user has no metadata or metadata is None")
     except Exception:
         token = None
 
@@ -185,10 +204,25 @@ async def on_thread_create_run(
                 list(configurable_after.keys()) if isinstance(configurable_after, dict) else [],
                 list(configurable_top_after.keys()) if isinstance(configurable_top_after, dict) else [],
             )
+            # Explicit verification that tokens are present post-injection
+            if "x-supabase-access-token" in configurable_top_after:
+                logger.info("Auth Hook (create_run): VERIFIED - token exists in top-level configurable")
+            else:
+                logger.error("Auth Hook (create_run): ERROR - token NOT found in top-level configurable after injection!")
+
+            if isinstance(configurable_after, dict) and "x-supabase-access-token" in configurable_after:
+                logger.info("Auth Hook (create_run): VERIFIED - token exists in nested configurable")
+            else:
+                logger.error("Auth Hook (create_run): ERROR - token NOT found in nested configurable after injection!")
         except Exception:
             logger.info("Auth Hook (create_run): unable to introspect config after injection")
     else:
         logger.warning("Auth Hook (create_run): no Supabase token found; not injecting")
+        logger.warning(
+            "Auth Hook (create_run): ctx.user type=%s, has metadata=%s",
+            type(ctx.user).__name__,
+            hasattr(ctx.user, 'metadata'),
+        )
 
 
 @auth.on.threads.read

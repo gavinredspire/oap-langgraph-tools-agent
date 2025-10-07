@@ -143,12 +143,11 @@ class GraphConfigPydantic(BaseModel):
             "x_oap_ui_config": {
                 "type": "rag",
                 # Here is where you would set the default collection. Use collection IDs
-                # "default": {
-                #     "collections": [
-                #         "fd4fac19-886c-4ac8-8a59-fff37d2b847f",
-                #         "659abb76-fdeb-428a-ac8f-03b111183e25",
-                #     ]
-                # },
+                 "default": {
+                     "collections": [
+                         "85bb5f38-acae-4e86-8259-0befa98a80a4"
+                     ]
+                 },
             }
            },
     )
