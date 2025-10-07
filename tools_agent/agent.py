@@ -193,7 +193,7 @@ async def graph(config: RunnableConfig):
     logger.info(f"RAG config: {cfg.rag}")
     logger.info(f"Supabase token present: {bool(supabase_token)}")
     
-    if cfg.rag and cfg.rag.rag_url and cfg.rag.collections and supabase_token:
+    if cfg.rag and cfg.rag.rag_url and cfg.rag.collections: # and supabase_token:
         logger.info("Creating RAG tools...")
         for collection in cfg.rag.collections:
             try:
