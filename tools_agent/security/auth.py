@@ -233,32 +233,7 @@ async def on_thread_create_run(
         )
 
 
-@auth.on.runs.create
-async def on_runs_create(
-    ctx: Auth.types.AuthContext,
-    value: dict,
-):
-    """Inject Supabase token for runs.create events as a fallback path."""
-    try:
-        logger.info("Auth Hook (runs.create): user type=%s is StudioUser=%s", type(ctx.user).__name__, isinstance(ctx.user, StudioUser))
-        if isinstance(ctx.user, StudioUser):
-            logger.info("Auth Hook (runs.create): StudioUser detected; skipping token injection")
-            return
-        token = None
-        if hasattr(ctx.user, "metadata") and ctx.user.metadata:
-            token = ctx.user.metadata.get("supabase_token")
-            logger.info("Auth Hook (runs.create): token length=%s", len(token) if token else 0)
-        if token:
-            cfg = value.setdefault("config", {})
-            configurable_nested = cfg.setdefault("configurable", {})
-            configurable_nested["x-supabase-access-token"] = token
-            configurable_top = value.setdefault("configurable", {})
-            configurable_top["x-supabase-access-token"] = token
-            logger.info("Auth Hook (runs.create): injected token into nested and top-level configurable")
-        else:
-            logger.warning("Auth Hook (runs.create): no Supabase token found; not injecting")
-    except Exception as e:
-        logger.info("Auth Hook (runs.create): error during injection: %s", e)
+# Note: No runs.create hook in this platform version; use threads.create_run above
 
 
 @auth.on.threads.read
