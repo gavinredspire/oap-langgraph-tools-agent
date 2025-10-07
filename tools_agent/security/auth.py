@@ -162,11 +162,15 @@ async def on_thread_create_run(
         token = None
 
     if token:
+        # Inject into nested config.configurable (some runtimes read from here)
         cfg = value.setdefault("config", {})
-        configurable = cfg.setdefault("configurable", {})
-        configurable["x-supabase-access-token"] = token
+        configurable_nested = cfg.setdefault("configurable", {})
+        configurable_nested["x-supabase-access-token"] = token
+        # Also inject into top-level configurable (observed in agent logs)
+        configurable_top = value.setdefault("configurable", {})
+        configurable_top["x-supabase-access-token"] = token
         logger.info(
-            "Auth Hook (create_run): injected Supabase token into config.configurable (len=%s)",
+            "Auth Hook (create_run): injected token into both top-level and nested configurable (len=%s)",
             len(token),
         )
 
@@ -174,10 +178,12 @@ async def on_thread_create_run(
         try:
             cfg_after = value.get("config", {}) if hasattr(value, "get") else {}
             configurable_after = cfg_after.get("configurable", {}) if isinstance(cfg_after, dict) else {}
+            configurable_top_after = value.get("configurable", {}) if hasattr(value, "get") else {}
             logger.info(
-                "Auth Hook (create_run): after injection -> has_config=%s configurable_keys=%s",
+                "Auth Hook (create_run): after injection -> has_config=%s nested_keys=%s top_level_keys=%s",
                 bool(cfg_after),
                 list(configurable_after.keys()) if isinstance(configurable_after, dict) else [],
+                list(configurable_top_after.keys()) if isinstance(configurable_top_after, dict) else [],
             )
         except Exception:
             logger.info("Auth Hook (create_run): unable to introspect config after injection")
