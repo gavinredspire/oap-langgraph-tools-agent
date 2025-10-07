@@ -94,7 +94,9 @@ async def create_rag_tool(rag_url: str, collection_id: str, access_token: str):
             async with session.get(
                 collection_endpoint, headers={"Authorization": f"Bearer {access_token}"}
             ) as response:
-                response.raise_for_status()
+                if response.status >= 400:
+                    body = await response.text()
+                    raise Exception(f"RAG GET {collection_endpoint} failed: {response.status} body={body}")
                 collection_data = await response.json()
 
         # Get the collection name and sanitize it to match the required regex pattern
@@ -132,7 +134,9 @@ async def create_rag_tool(rag_url: str, collection_id: str, access_token: str):
                         json=payload,
                         headers={"Authorization": f"Bearer {access_token}"},
                     ) as search_response:
-                        search_response.raise_for_status()
+                        if search_response.status >= 400:
+                            body = await search_response.text()
+                            raise Exception(f"RAG POST {search_endpoint} failed: {search_response.status} body={body}")
                         documents = await search_response.json()
 
                 formatted_docs = "<all-documents>\n"

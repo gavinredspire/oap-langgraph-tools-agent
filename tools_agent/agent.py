@@ -183,12 +183,19 @@ async def graph(config: RunnableConfig):
         list(config.get("config", {}).get("configurable", {}).keys()),
     )
 
-    # Read token from both top-level configurable and nested config.configurable
+    # Read token from both top-level configurable and nested config.configurable, fall back to metadata
     supabase_token = (
         config.get("configurable", {}).get("x-supabase-access-token")
         or config.get("config", {}).get("configurable", {}).get("x-supabase-access-token")
+        or config.get("metadata", {}).get("supabase_token")
     )
 
+    # Correlate with auth logs
+    logger.info(
+        "Agent: thread_id=%s run_id=%s",
+        config.get("configurable", {}).get("thread_id"),
+        config.get("configurable", {}).get("run_id"),
+    )
     logger.info(f"RAG config: {cfg.rag}")
     logger.info(f"Supabase token present: {bool(supabase_token)}")
     

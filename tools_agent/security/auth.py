@@ -159,6 +159,14 @@ async def on_thread_create_run(
         value_keys = []
     logger.info("Auth Hook (create_run): fired; value keys=%s", value_keys)
 
+    # Log thread/run identifiers to correlate with agent logs
+    try:
+        thread_id = (hasattr(value, "get") and value.get("thread_id")) or getattr(value, "thread_id", None)
+        run_id = (hasattr(value, "get") and (value.get("run_id") or value.get("id"))) or getattr(value, "id", None)
+        logger.info("Auth Hook (create_run): thread_id=%s run_id=%s", thread_id, run_id)
+    except Exception:
+        logger.info("Auth Hook (create_run): unable to read thread/run identifiers from value")
+
     try:
         cfg_before = value.get("config", {}) if hasattr(value, "get") else {}
         configurable_before = cfg_before.get("configurable", {}) if isinstance(cfg_before, dict) else {}
@@ -223,6 +231,34 @@ async def on_thread_create_run(
             type(ctx.user).__name__,
             hasattr(ctx.user, 'metadata'),
         )
+
+
+@auth.on.runs.create
+async def on_runs_create(
+    ctx: Auth.types.AuthContext,
+    value: dict,
+):
+    """Inject Supabase token for runs.create events as a fallback path."""
+    try:
+        logger.info("Auth Hook (runs.create): user type=%s is StudioUser=%s", type(ctx.user).__name__, isinstance(ctx.user, StudioUser))
+        if isinstance(ctx.user, StudioUser):
+            logger.info("Auth Hook (runs.create): StudioUser detected; skipping token injection")
+            return
+        token = None
+        if hasattr(ctx.user, "metadata") and ctx.user.metadata:
+            token = ctx.user.metadata.get("supabase_token")
+            logger.info("Auth Hook (runs.create): token length=%s", len(token) if token else 0)
+        if token:
+            cfg = value.setdefault("config", {})
+            configurable_nested = cfg.setdefault("configurable", {})
+            configurable_nested["x-supabase-access-token"] = token
+            configurable_top = value.setdefault("configurable", {})
+            configurable_top["x-supabase-access-token"] = token
+            logger.info("Auth Hook (runs.create): injected token into nested and top-level configurable")
+        else:
+            logger.warning("Auth Hook (runs.create): no Supabase token found; not injecting")
+    except Exception as e:
+        logger.info("Auth Hook (runs.create): error during injection: %s", e)
 
 
 @auth.on.threads.read
